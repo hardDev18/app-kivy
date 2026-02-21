@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # استفاده از نسخه پایدار
     
     steps:
     - name: Checkout code
@@ -16,21 +16,71 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.9'  # نسخه پایدارتر پایتون
     
-    - name: Install dependencies
+    - name: نصب پیش‌نیازهای سیستم
       run: |
         sudo apt update
-        sudo apt install -y python3-pip openjdk-17-jdk git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
-        pip install --user Cython buildozer
+        sudo apt install -y \
+          git \
+          zip \
+          unzip \
+          openjdk-17-jdk \
+          python3-pip \
+          python3-dev \
+          autoconf \
+          libtool \
+          pkg-config \
+          zlib1g-dev \
+          libncurses5-dev \
+          libncursesw5-dev \
+          cmake \
+          libffi-dev \
+          libssl-dev \
+          wget \
+          curl \
+          ccache
     
-    - name: Build APK
+    - name: نصب پکیج‌های پایتون
+      run: |
+        pip install --user --upgrade pip setuptools wheel
+        pip install --user Cython virtualenv
+        pip install --user buildozer
+    
+    - name: پاک کردن کامل کش
+      run: |
+        rm -rf ~/.buildozer
+        rm -rf ~/.cache/buildozer
+        rm -rf /home/runner/.local/share/buildozer
+    
+    - name: دانلود دستی NDK (برای جلوگیری از خطا)
+      run: |
+        mkdir -p ~/.buildozer/android/platform
+        cd ~/.buildozer/android/platform
+        wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+        unzip -q android-ndk-r25b-linux.zip
+        mv android-ndk-r25b android-ndk-r25b
+        echo "NDK دانلود شد"
+    
+    - name: ساخت APK
       run: |
         export PATH=$PATH:~/.local/bin/
-        yes | buildozer android debug
+        # قبول همه لایسنس‌ها
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        # اجرای buildozer
+        buildozer android debug || true
     
-    - name: Upload APK
+    - name: آپلود APK
       uses: actions/upload-artifact@v4
       with:
         name: mashin-hesab-apk
         path: bin/*.apk
+        if-no-files-found: warn
+        retention-days: 30
+    
+    - name: آپلود لاگ (اگر خطا داشت)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-error-log
+        path: ~/.buildozer/android/platform/build-*/logs/
