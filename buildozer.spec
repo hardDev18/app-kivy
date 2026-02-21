@@ -12,13 +12,11 @@ requirements = python3,kivy
 orientation = portrait
 fullscreen = 0
 
-# نسخه‌های پایدار اندروید
-android.api = 33
+# حداقل تنظیمات برای اندروید
+android.api = 30
 android.minapi = 21
-android.sdk = 24
-android.ndk = 25b
-android.ndk_path = 
-android.sdk_path = 
+android.ndk = 23b
+android.sdk = 30
 android.accept_sdk_license = True
 
 [buildozer]
