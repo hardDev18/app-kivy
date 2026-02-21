@@ -18,44 +18,18 @@ jobs:
       with:
         python-version: '3.9'
     
-    - name: نصب پیش‌نیازهای سیستم
+    - name: نصب پیش‌نیازها
       run: |
         sudo apt update
-        sudo apt install -y \
-          git \
-          zip \
-          unzip \
-          openjdk-17-jdk \
-          python3-pip \
-          python3-dev \
-          autoconf \
-          libtool \
-          pkg-config \
-          zlib1g-dev \
-          libncurses5-dev \
-          libncursesw5-dev \
-          cmake \
-          libffi-dev \
-          libssl-dev \
-          wget \
-          curl \
-          ccache \
-          ninja-build
+        sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev wget
     
-    - name: نصب پکیج‌های پایتون
+    - name: نصب buildozer
       run: |
-        pip install --user --upgrade pip setuptools wheel
-        pip install --user Cython virtualenv
-        pip install --user buildozer
+        pip install --user --upgrade pip
+        pip install --user Cython buildozer
     
-    - name: پاک کردن کش
+    - name: نصب Android SDK
       run: |
-        rm -rf ~/.buildozer
-        rm -rf ~/.cache/buildozer
-    
-    - name: نصب Android SDK و NDK با sdkmanager
-      run: |
-        # نصب command line tools
         mkdir -p ~/.android/cmdline-tools
         cd ~/.android
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
@@ -63,17 +37,7 @@ jobs:
         mv cmdline-tools latest
         mkdir -p cmdline-tools
         mv latest cmdline-tools/
-        
-        # قبول لایسنس‌ها
         yes | ~/.android/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        
-        # نصب SDK و NDK
-        ~/.android/cmdline-tools/latest/bin/sdkmanager "platforms;android-31" "build-tools;31.0.0" "ndk;25.2.9519653" "platform-tools" "tools"
-        
-        # تنظیم متغیرهای محیطی
-        echo "ANDROID_HOME=$HOME/.android" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=$HOME/.android" >> $GITHUB_ENV
-        echo "PATH=$PATH:$HOME/.android/cmdline-tools/latest/bin:$HOME/.android/platform-tools" >> $GITHUB_ENV
     
     - name: ساخت APK
       run: |
@@ -82,28 +46,39 @@ jobs:
         export ANDROID_SDK_ROOT=$HOME/.android
         export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
         
+        # پاک کردن کش و ساخت دوباره
+        rm -rf .buildozer
+        rm -rf ~/.buildozer
+        
         # اجرای buildozer
-        buildozer android debug || true
+        buildozer android debug
     
-    - name: آپلود APK
+    - name: جستجوی کامل فایل APK
+      run: |
+        echo "=== جستجوی فایل APK در کل سیستم ==="
+        find /home/runner -name "*.apk" -type f 2>/dev/null || true
+        echo ""
+        echo "=== جستجوی فایل APK در پوشه پروژه ==="
+        find $GITHUB_WORKSPACE -name "*.apk" -type f 2>/dev/null || true
+        echo ""
+        echo "=== محتویات پوشه .buildozer ==="
+        ls -la ~/.buildozer/ || true
+        echo ""
+        echo "=== محتویات پوشه bin ==="
+        ls -la bin/ || true
+        echo ""
+        echo "=== محتویات پوشه پروژه ==="
+        ls -la || true
+    
+    - name: آپلود هر فایل APK پیدا شده
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: mashin-hesab-apk
-        path: bin/*.apk
+        path: |
+          /home/runner/**/*.apk
+          ${{ github.workspace }}/**/*.apk
+          ~/.buildozer/**/*.apk
+          ./**/*.apk
         if-no-files-found: warn
         retention-days: 30
-    
-    - name: آپلود لاگ
-      if: failure()
-      run: |
-        find ~/.buildozer -name "*.log" -exec cp {} ./ \;
-        ls -la
-      continue-on-error: true
-      
-    - name: آپلود لاگ‌ها
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: build-logs
-        path: ./*.log
-        if-no-files-found: ignore
