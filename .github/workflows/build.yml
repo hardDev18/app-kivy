@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-20.04  # برگشت به نسخه پایدارتر
     
     steps:
     - name: Checkout code
@@ -16,69 +16,59 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.8'  # نسخه پایدارتر پایتون
     
-    - name: نصب پیش‌نیازها
+    - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev wget
+        sudo apt install -y \
+          git \
+          zip \
+          unzip \
+          openjdk-11-jdk \
+          python3-pip \
+          autoconf \
+          libtool \
+          pkg-config \
+          zlib1g-dev \
+          libncurses5-dev \
+          libncursesw5-dev \
+          cmake \
+          libffi-dev \
+          libssl-dev \
+          wget
     
-    - name: نصب buildozer
+    - name: Install buildozer
       run: |
-        pip install --user --upgrade pip
-        pip install --user Cython buildozer
+        pip install --user --upgrade pip setuptools wheel
+        pip install --user Cython==0.29.33
+        pip install --user buildozer==1.5.0  # نسخه خاص و پایدار
     
-    - name: نصب Android SDK
+    - name: Create buildozer.spec if not exists
       run: |
-        mkdir -p ~/.android/cmdline-tools
-        cd ~/.android
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-9477386_latest.zip
-        mv cmdline-tools latest
-        mkdir -p cmdline-tools
-        mv latest cmdline-tools/
-        yes | ~/.android/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        if [ ! -f buildozer.spec ]; then
+          buildozer init
+        fi
     
-    - name: ساخت APK
+    - name: Build APK
       run: |
         export PATH=$PATH:~/.local/bin/
-        export ANDROID_HOME=$HOME/.android
-        export ANDROID_SDK_ROOT=$HOME/.android
-        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
-        
-        # پاک کردن کش و ساخت دوباره
-        rm -rf .buildozer
-        rm -rf ~/.buildozer
-        
-        # اجرای buildozer
-        buildozer android debug
+        # قبول لایسنس‌ها
+        yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses || true
+        # ساخت APK
+        yes | buildozer -v android debug
     
-    - name: جستجوی کامل فایل APK
-      run: |
-        echo "=== جستجوی فایل APK در کل سیستم ==="
-        find /home/runner -name "*.apk" -type f 2>/dev/null || true
-        echo ""
-        echo "=== جستجوی فایل APK در پوشه پروژه ==="
-        find $GITHUB_WORKSPACE -name "*.apk" -type f 2>/dev/null || true
-        echo ""
-        echo "=== محتویات پوشه .buildozer ==="
-        ls -la ~/.buildozer/ || true
-        echo ""
-        echo "=== محتویات پوشه bin ==="
-        ls -la bin/ || true
-        echo ""
-        echo "=== محتویات پوشه پروژه ==="
-        ls -la || true
-    
-    - name: آپلود هر فایل APK پیدا شده
+    - name: Find and upload APK
       if: always()
+      run: |
+        echo "Searching for APK files..."
+        find $HOME -name "*.apk" -type f -exec cp {} ./ \;
+        ls -la *.apk || true
+    
+    - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: mashin-hesab-apk
-        path: |
-          /home/runner/**/*.apk
-          ${{ github.workspace }}/**/*.apk
-          ~/.buildozer/**/*.apk
-          ./**/*.apk
+        path: ./*.apk
         if-no-files-found: warn
         retention-days: 30
