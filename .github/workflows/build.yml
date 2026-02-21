@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # استفاده از نسخه پایدار
+    runs-on: ubuntu-22.04
     
     steps:
     - name: Checkout code
@@ -16,7 +16,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'  # نسخه پایدارتر پایتون
+        python-version: '3.9'
     
     - name: نصب پیش‌نیازهای سیستم
       run: |
@@ -39,7 +39,8 @@ jobs:
           libssl-dev \
           wget \
           curl \
-          ccache
+          ccache \
+          ninja-build
     
     - name: نصب پکیج‌های پایتون
       run: |
@@ -47,26 +48,40 @@ jobs:
         pip install --user Cython virtualenv
         pip install --user buildozer
     
-    - name: پاک کردن کامل کش
+    - name: پاک کردن کش
       run: |
         rm -rf ~/.buildozer
         rm -rf ~/.cache/buildozer
-        rm -rf /home/runner/.local/share/buildozer
     
-    - name: دانلود دستی NDK (برای جلوگیری از خطا)
+    - name: نصب Android SDK و NDK با sdkmanager
       run: |
-        mkdir -p ~/.buildozer/android/platform
-        cd ~/.buildozer/android/platform
-        wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-        unzip -q android-ndk-r25b-linux.zip
-        mv android-ndk-r25b android-ndk-r25b
-        echo "NDK دانلود شد"
+        # نصب command line tools
+        mkdir -p ~/.android/cmdline-tools
+        cd ~/.android
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mv cmdline-tools latest
+        mkdir -p cmdline-tools
+        mv latest cmdline-tools/
+        
+        # قبول لایسنس‌ها
+        yes | ~/.android/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        
+        # نصب SDK و NDK
+        ~/.android/cmdline-tools/latest/bin/sdkmanager "platforms;android-31" "build-tools;31.0.0" "ndk;25.2.9519653" "platform-tools" "tools"
+        
+        # تنظیم متغیرهای محیطی
+        echo "ANDROID_HOME=$HOME/.android" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$HOME/.android" >> $GITHUB_ENV
+        echo "PATH=$PATH:$HOME/.android/cmdline-tools/latest/bin:$HOME/.android/platform-tools" >> $GITHUB_ENV
     
     - name: ساخت APK
       run: |
         export PATH=$PATH:~/.local/bin/
-        # قبول همه لایسنس‌ها
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        export ANDROID_HOME=$HOME/.android
+        export ANDROID_SDK_ROOT=$HOME/.android
+        export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+        
         # اجرای buildozer
         buildozer android debug || true
     
@@ -78,9 +93,17 @@ jobs:
         if-no-files-found: warn
         retention-days: 30
     
-    - name: آپلود لاگ (اگر خطا داشت)
+    - name: آپلود لاگ
+      if: failure()
+      run: |
+        find ~/.buildozer -name "*.log" -exec cp {} ./ \;
+        ls -la
+      continue-on-error: true
+      
+    - name: آپلود لاگ‌ها
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: build-error-log
-        path: ~/.buildozer/android/platform/build-*/logs/
+        name: build-logs
+        path: ./*.log
+        if-no-files-found: ignore
