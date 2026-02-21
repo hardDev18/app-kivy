@@ -7,21 +7,27 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    - name: Install dependencies
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install system dependencies
       run: |
         sudo apt update
         sudo apt install -y \
           git \
           zip \
           unzip \
-          openjdk-17-jdk \
+          openjdk-11-jdk \
           python3-pip \
+          python3-dev \
           autoconf \
           libtool \
           pkg-config \
@@ -30,26 +36,46 @@ jobs:
           libncursesw5-dev \
           cmake \
           libffi-dev \
-          libssl-dev
+          libssl-dev \
+          wget \
+          ccache
     
-    - name: Install Cython and buildozer
+    - name: Install Python packages
       run: |
-        pip install --user --upgrade Cython virtualenv
+        pip install --user --upgrade pip setuptools wheel
+        pip install --user Cython==0.29.36 virtualenv
         pip install --user buildozer
     
-    - name: قبول خودکار لایسنس SDK
+    - name: Clear buildozer cache
       run: |
-        yes | ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses || true
+        rm -rf ~/.buildozer
+        rm -rf ~/.cache/buildozer
     
-    - name: Build with buildozer
+    - name: Debug - Show environment
+      run: |
+        java -version
+        python --version
+        pip list
+        env
+    
+    - name: Build with buildozer (full log)
       run: |
         export PATH=$PATH:~/.local/bin/
-        buildozer android debug
+        export BUILDozER_DEBUG=1
+        yes | buildozer -v android debug 2>&1 | tee buildozer_log.txt
+    
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: buildozer_log.txt
     
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: mashin-hesab-apk
         path: bin/*.apk
-        if-no-files-found: error
-        retention-days: 90
+        if-no-files-found: warn
+        retention-days: 30
