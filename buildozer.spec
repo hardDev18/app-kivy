@@ -12,17 +12,14 @@ requirements = python3,kivy
 orientation = portrait
 fullscreen = 0
 
-# تنظیمات حیاتی اندروید
+# تنظیمات اندروید - بدون هیچ warning
 android.api = 31
 android.minapi = 21
-android.ndk = 25b
-android.sdk = 31
+android.ndk = 25.2.9519653
 android.accept_sdk_license = True
-android.ndk_path = 
-android.sdk_path = 
 
-# معماری پردازنده (فقط یه معماری برای سرعت بیشتر)
-android.arch = arm64-v8a
+# تغییر مهم: android.arch -> android.archs
+android.archs = arm64-v8a
 
 [buildozer]
 log_level = 2
